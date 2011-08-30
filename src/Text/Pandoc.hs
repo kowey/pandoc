@@ -82,6 +82,7 @@ module Text.Pandoc
                , writeMarkdown
                , writePlain
                , writeRST
+               , writeIgloo
                , writeLaTeX
                , writeConTeXt
                , writeTexinfo
@@ -120,6 +121,7 @@ import Text.Pandoc.Readers.HTML
 import Text.Pandoc.Readers.Textile
 import Text.Pandoc.Readers.Native
 import Text.Pandoc.Writers.Native
+import Text.Pandoc.Writers.Igloo
 import Text.Pandoc.Writers.Markdown
 import Text.Pandoc.Writers.RST 
 import Text.Pandoc.Writers.LaTeX
@@ -181,6 +183,7 @@ writers = [("native"       , writeNative)
           ,("context"      , writeConTeXt)
           ,("texinfo"      , writeTexinfo)
           ,("man"          , writeMan)
+          ,("igloo"        , writeIgloo)
           ,("markdown"     , writeMarkdown)
           ,("markdown+lhs" , \o ->
                              writeMarkdown o{ writerLiterateHaskell = True })
