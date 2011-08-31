@@ -206,13 +206,7 @@ blockToIgloo _ HorizontalRule =
 blockToIgloo opts (Header level inlines) = do
   contents <- inlineListToIgloo opts inlines
   st <- get
-  -- use setext style headers if in literate haskell mode.
-  -- ghc interprets '#' characters in column 1 as line number specifiers.
-  if writerLiterateHaskell opts || stPlain st
-     then let len = offset contents
-          in  return $ text (replicate len '=') <> contents <> cr
-     else return $
-       text ((replicate level '#') ++ " ") <> contents <> blankline
+  return $ text ((replicate level '=') ++ " ") <> contents <> blankline
 blockToIgloo opts (CodeBlock (_,classes,_) str)
   | "haskell" `elem` classes && "literate" `elem` classes &&
     writerLiterateHaskell opts =
