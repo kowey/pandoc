@@ -54,23 +54,6 @@ writeIgloo opts document =
                                                         , stRefs  = []
                                                         , stPlain = False }
 
-plainify :: Pandoc -> Pandoc
-plainify = bottomUp go
-  where go :: Inline -> Inline
-        go (Emph xs) = SmallCaps xs
-        go (Strong xs) = SmallCaps xs
-        go (Strikeout xs) = SmallCaps xs
-        go (Superscript xs) = SmallCaps xs
-        go (Subscript xs) = SmallCaps xs
-        go (SmallCaps xs) = SmallCaps xs
-        go (Code _ s) = Str s
-        go (Math _ s) = Str s
-        go (RawInline _ _) = Str ""
-        go (Link xs _) = SmallCaps xs
-        go (Image xs _) = SmallCaps $ [Str "["] ++ xs ++ [Str "]"]
-        go (Cite _ cits) = SmallCaps cits
-        go x = x
-
 -- | Return markdown representation of document.
 pandocToIgloo :: WriterOptions -> Pandoc -> State WriterState String
 pandocToIgloo opts (Pandoc (Meta title authors date) blocks) = do
