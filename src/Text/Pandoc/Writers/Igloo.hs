@@ -477,7 +477,7 @@ inlineToIgloo opts (Link txt (src', tit)) = do
                       _                                 -> False
   ref <- if useRefLinks then getReference txt (src, tit) else return []
   reftext <- inlineListToIgloo opts ref
-  return $ "[" <> text src <> linktext <> "]"
+  return $ "[" <> text src <+> linktext <> "]"
 inlineToIgloo opts (Image alternate (source, tit)) = do
   let txt = if (null alternate) || (alternate == [Str ""]) || 
                (alternate == [Str source]) -- to prevent autolinks
