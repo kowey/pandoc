@@ -297,8 +297,8 @@ blockToIgloo opts (DefinitionList items) = do
 bulletListItemToIgloo :: WriterOptions -> [Block] -> State WriterState Doc
 bulletListItemToIgloo opts items = do
   contents <- blockListToIgloo opts items
-  let sps = replicate (writerTabStop opts - 2) ' '
-  let start = text ('-' : ' ' : sps)
+  let sps = replicate (writerTabStop opts - 4) ' '
+  let start = text ('*' : ' ' : sps)
   return $ hang (writerTabStop opts) start $ contents <> cr
 
 -- | Convert ordered list item (a list of blocks) to markdown.
