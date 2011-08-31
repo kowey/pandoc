@@ -203,6 +203,12 @@ blockToIgloo _ (RawBlock f str)
 blockToIgloo _ (RawBlock _ _) = return empty
 blockToIgloo _ HorizontalRule =
   return $ blankline <> text "* * * * *" <> blankline
+blockToIgloo opts (Header 1 inlines) = do
+  contents <- inlineListToIgloo opts inlines
+  st <- get
+  return $   "title: "      <> contents <> cr
+          <> "author: "     <> cr
+          <> "categories: " <> blankline
 blockToIgloo opts (Header level inlines) = do
   contents <- inlineListToIgloo opts inlines
   st <- get
