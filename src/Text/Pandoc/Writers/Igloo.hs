@@ -227,15 +227,10 @@ blockToIgloo opts (CodeBlock attribs str) = return $
                   attrs = attrsToIgloo attribs
 blockToIgloo opts (BlockQuote blocks) = do
   st <- get
-  -- if we're writing literate haskell, put a space before the bird tracks
-  -- so they won't be interpreted as lhs...
-  let leader = if writerLiterateHaskell opts
-                  then " > "
-                  else if stPlain st
-                          then "  "
-                          else "> "
   contents <- blockListToIgloo opts blocks
-  return $ (prefixed leader contents) <> blankline
+  return $ ">("     $$
+           contents $$
+           ">)"     <> blankline
 blockToIgloo opts (Table caption aligns widths headers rows) =  do
   caption' <- inlineListToIgloo opts caption
   let caption'' = if null caption
