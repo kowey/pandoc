@@ -125,7 +125,7 @@ noteToIgloo opts num blocks = do
 -- | Escape special characters for Igloo.
 escapeString :: String -> String
 escapeString = escapeStringUsing markdownEscapes
-  where markdownEscapes = backslashEscapes "/\\`*_>#~^"
+  where markdownEscapes = backslashEscapes "/\\`*_>#~^[]"
 
 -- | Construct table of contents from list of header blocks.
 tableOfContents :: WriterOptions -> [Block] -> Doc 
@@ -192,7 +192,7 @@ blockToIgloo opts (Para inlines) = do
                beginsWithOrderedListMarker (render Nothing contents)
                then text "\\"
                else empty
-  return $ esc <> contents <> blankline
+  return $ esc <> contents -- <> blankline TODO: eyk 2012-04-12 : can we restore this elsewhere? 
 blockToIgloo _ (RawBlock f str)
   | f == "html" || f == "latex" || f == "tex" || f == "markdown" = do
     st <- get
@@ -288,7 +288,7 @@ blockToIgloo opts (DefinitionList items) = do
 -- | Convert bullet list item (list of blocks) to igloo.
 bulletListItemToIgloo :: WriterOptions -> [Block] -> State WriterState Doc
 bulletListItemToIgloo opts items = do
-  contents <- blockListToIgloo opts (fixBlocks items)
+  contents <- blockListToContiguousIgloo opts (fixBlocks items)
   let sps = replicate (writerTabStop opts - 4) ' '
   let start = text ('*' : ' ' : sps)
   return $ hang (writerTabStop opts - 2) start $ contents <> cr
@@ -328,12 +328,49 @@ definitionListItemToIgloo opts (label, defs) = do
   let contents = vcat $ map (\d -> hang tabStop (leader <> sps) $ vcat d <> cr) defs'
   return $ labelText <> cr <> contents <> cr
 
--- | Convert list of Pandoc block elements to igloo.
+-- Contiguity is a bit of a hack
+--
+-- Suppose we have multi-block bullet item that we need to represent
+--
+-- > * Hello world!
+-- > 
+-- >   I am saying something new here
+--
+-- One difficulty is that the line in between the block has to be
+-- indented with the same amount of whitespace, lest the parser be
+-- confused
+--
+-- So this is Bad:
+--
+-- >␣*␣Hello world!
+-- > 
+-- >␣␣␣I am saying something new here
+--
+--
+-- But this is Good
+--
+-- >␣*␣Hello world!
+-- >␣␣␣
+-- >␣␣␣I am saying something new here
+--
+-- The trickiness here is that the block writer systematically emits a
+-- blank line after each paragraph, which I'm guessing is handled
+-- too intelligently by the pretty printer's rendering function.  I
+-- suppose the thing to do here is not to emit this blank line,
+blockListToContiguousIgloo = blockListToIglooH True
+
 blockListToIgloo :: WriterOptions -- ^ Options
+                 -> [Block]       -- ^ List of block elements
+                 -> State WriterState Doc 
+blockListToIgloo = blockListToIglooH False
+
+-- | Convert list of Pandoc block elements to igloo.
+blockListToIglooH :: Bool -- ^ Continguous (see 'blockListToContiguousIgloo')
+                    -> WriterOptions -- ^ Options
                     -> [Block]       -- ^ List of block elements
                     -> State WriterState Doc 
-blockListToIgloo opts blocks =
-  mapM (blockToIgloo opts) (fixBlocks blocks) >>= return . cat
+blockListToIglooH cont opts blocks =
+  mapM (blockToIgloo opts) (fixBlocks blocks) >>= return . (<> blankline) . cat . intersperse sep
     -- insert comment between list and indented code block, or the
     -- code block will be treated as a list continuation paragraph
     where fixBlocks (b : CodeBlock attr x : rest)
@@ -346,6 +383,7 @@ blockListToIgloo opts blocks =
           isListBlock (OrderedList _ _)  = True
           isListBlock (DefinitionList _) = True
           isListBlock _                  = False
+          sep = if cont then ("\n " <> cr) else blankline
 
 -- | Get reference for target; if none exists, create unique one and return.
 --   Prefer label if possible; otherwise, generate a unique key.
