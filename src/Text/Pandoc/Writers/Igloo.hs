@@ -26,7 +26,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
    Stability   : alpha
    Portability : portable
 
-Conversion of 'Pandoc' documents to markdown-formatted plain text.
+Conversion of 'Pandoc' documents to igloo-formatted plain text.
 
 Igloo:  <http://daringfireball.net/projects/markdown/>
 -}
@@ -45,14 +45,14 @@ type Notes = [[Block]]
 type Refs = [([Inline], Target)]
 data WriterState = WriterState { stNotes :: Notes
                                , stRefs :: Refs
-                               , stPlain :: Bool }
+                               }
 
 -- | Convert Pandoc to Igloo.
 writeIgloo :: WriterOptions -> Pandoc -> String
 writeIgloo opts document = 
   evalState (pandocToIgloo opts document) WriterState{ stNotes = []
-                                                        , stRefs  = []
-                                                        , stPlain = False }
+                                                     , stRefs  = []
+                                                     }
 
 -- | Return markdown representation of document.
 pandocToIgloo :: WriterOptions -> Pandoc -> State WriterState String
@@ -125,7 +125,7 @@ noteToIgloo opts num blocks = do
 -- | Escape special characters for Igloo.
 escapeString :: String -> String
 escapeString = escapeStringUsing markdownEscapes
-  where markdownEscapes = backslashEscapes "\\`*_>#~^"
+  where markdownEscapes = backslashEscapes "/\\`*_>#~^"
 
 -- | Construct table of contents from list of header blocks.
 tableOfContents :: WriterOptions -> [Block] -> Doc 
@@ -133,8 +133,8 @@ tableOfContents opts headers =
   let opts' = opts { writerIgnoreNotes = True }
       contents = BulletList $ map elementToListItem $ hierarchicalize headers
   in  evalState (blockToIgloo opts' contents) WriterState{ stNotes = []
-                                                            , stRefs  = []
-                                                            , stPlain = False }
+                                                         , stRefs  = []
+                                                         }
 
 -- | Converts an Element to a list item for a table of contents,
 elementToListItem :: Element -> [Block]
@@ -176,7 +176,7 @@ beginsWithOrderedListMarker str =
          Left  _  -> False
          Right _  -> True
 
--- | Convert Pandoc block element to markdown.
+-- | Convert Pandoc block element to igloo.
 blockToIgloo :: WriterOptions -- ^ Options
                 -> Block         -- ^ Block element
                 -> State WriterState Doc 
@@ -189,7 +189,6 @@ blockToIgloo opts (Para inlines) = do
   -- escape if para starts with ordered list marker
   st <- get
   let esc = if (not (writerStrictMarkdown opts)) &&
-               not (stPlain st) &&
                beginsWithOrderedListMarker (render Nothing contents)
                then text "\\"
                else empty
@@ -197,9 +196,7 @@ blockToIgloo opts (Para inlines) = do
 blockToIgloo _ (RawBlock f str)
   | f == "html" || f == "latex" || f == "tex" || f == "markdown" = do
     st <- get
-    if stPlain st
-       then return empty
-       else return $ text str <> text "\n"
+    return $ text str <> text "\n"
 blockToIgloo _ (RawBlock _ _) = return empty
 blockToIgloo _ HorizontalRule =
   return $ blankline <> text "* * * * *" <> blankline
@@ -288,15 +285,21 @@ blockToIgloo opts (DefinitionList items) = do
   contents <- mapM (definitionListItemToIgloo opts) items
   return $ cat contents <> blankline
 
--- | Convert bullet list item (list of blocks) to markdown.
+-- | Convert bullet list item (list of blocks) to igloo.
 bulletListItemToIgloo :: WriterOptions -> [Block] -> State WriterState Doc
 bulletListItemToIgloo opts items = do
-  contents <- blockListToIgloo opts items
+  contents <- blockListToIgloo opts (fixBlocks items)
   let sps = replicate (writerTabStop opts - 4) ' '
   let start = text ('*' : ' ' : sps)
   return $ hang (writerTabStop opts - 2) start $ contents <> cr
+ where
+  fixBlocks (Para p : xs) = Para (RawInline "igloo" "{<p>}" : p ++ [RawInline "igloo" "{</p>}"])
+                          : fixBlocks xs
+  fixBlocks (x:xs) = x : fixBlocks xs
+  fixBlocks [] = []  
 
--- | Convert ordered list item (a list of blocks) to markdown.
+
+-- | Convert ordered list item (a list of blocks) to igloo.
 orderedListItemToIgloo :: WriterOptions -- ^ options
                           -> String        -- ^ list item marker
                           -> [Block]       -- ^ list item (list of blocks)
@@ -309,7 +312,7 @@ orderedListItemToIgloo opts marker items = do
   let start = text marker <> sps
   return $ hang (writerTabStop opts) start $ contents <> cr
 
--- | Convert definition list item (label, list of blocks) to markdown.
+-- | Convert definition list item (label, list of blocks) to igloo.
 definitionListItemToIgloo :: WriterOptions
                              -> ([Inline],[[Block]]) 
                              -> State WriterState Doc
@@ -317,7 +320,7 @@ definitionListItemToIgloo opts (label, defs) = do
   labelText <- inlineListToIgloo opts label
   let tabStop = writerTabStop opts
   st <- get
-  let leader  = if stPlain st then "   " else "  ~"
+  let leader  = "  ~"
   let sps = case writerTabStop opts - 3 of
                  n | n > 0   -> text $ replicate n ' '
                  _           -> text " "
@@ -325,7 +328,7 @@ definitionListItemToIgloo opts (label, defs) = do
   let contents = vcat $ map (\d -> hang tabStop (leader <> sps) $ vcat d <> cr) defs'
   return $ labelText <> cr <> contents <> cr
 
--- | Convert list of Pandoc block elements to markdown.
+-- | Convert list of Pandoc block elements to igloo.
 blockListToIgloo :: WriterOptions -- ^ Options
                     -> [Block]       -- ^ List of block elements
                     -> State WriterState Doc 
@@ -362,7 +365,7 @@ getReference label (src, tit) = do
       modify (\s -> s{ stRefs = (label', (src,tit)) : stRefs st })
       return label'
 
--- | Convert list of Pandoc inline elements to markdown.
+-- | Convert list of Pandoc inline elements to igloo.
 inlineListToIgloo :: WriterOptions -> [Inline] -> State WriterState Doc
 inlineListToIgloo opts lst =
   mapM (inlineToIgloo opts) lst >>= return . cat
@@ -372,7 +375,7 @@ escapeSpaces (Str s) = Str $ substitute " " "\\ " s
 escapeSpaces Space = Str "\\ "
 escapeSpaces x = x
 
--- | Convert Pandoc inline element to markdown.
+-- | Convert Pandoc inline element to igloo.
 inlineToIgloo :: WriterOptions -> Inline -> State WriterState Doc
 inlineToIgloo opts (Emph lst) = do 
   contents <- inlineListToIgloo opts lst
@@ -415,15 +418,14 @@ inlineToIgloo opts (Code attr str) =
   in  return $ text (marker ++ spacer ++ str ++ spacer ++ marker) <> attrs
 inlineToIgloo _ (Str str) = do
   st <- get
-  if stPlain st
-     then return $ text str
-     else return $ text $ escapeString str
+  return $ text $ escapeString str
 inlineToIgloo _ (Math InlineMath str) =
   return $ "$" <> text str <> "$"
 inlineToIgloo _ (Math DisplayMath str) =
   return $ "$$" <> text str <> "$$"
 inlineToIgloo _ (RawInline f str)
-  | f == "html" || f == "latex" || f == "tex" || f == "markdown" =
+  | f == "html" || f == "latex" || f == "tex" ||
+    f == "markdown" || f == "igloo" =
     return $ text str
 inlineToIgloo _ (RawInline _ _) = return empty
 inlineToIgloo opts (LineBreak) = return $
